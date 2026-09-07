@@ -1,0 +1,4 @@
+sistema_estoque
+*.o
+*.bin
+*.dat
