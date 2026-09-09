@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define MAX_PRODUTOS 100
+#define NOME_ARQUIVO "estoque.csv"
 
 typedef struct {
     int codigo;
@@ -9,6 +11,41 @@ typedef struct {
     int quantidade;
     float preco;
 } Produto;
+
+void limpar_buffer() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+}
+
+void carregar_estoque(Produto lista[], int *total) {
+    FILE *arquivo = fopen(NOME_ARQUIVO, "r");
+    if (arquivo == NULL) return;
+
+    *total = 0;
+    while (fscanf(arquivo, "%d,%49[^,],%d,%f\n", 
+                  &lista[*total].codigo, 
+                  lista[*total].nome, 
+                  &lista[*total].quantidade, 
+                  &lista[*total].preco) == 4) {
+        (*total)++;
+        if (*total >= MAX_PRODUTOS) break;
+    }
+    fclose(arquivo);
+}
+
+void salvar_estoque(Produto lista[], int total) {
+    FILE *arquivo = fopen(NOME_ARQUIVO, "w");
+    if (arquivo == NULL) {
+        printf("\nErro ao salvar os dados!\n");
+        return;
+    }
+
+    for (int i = 0; i < total; i++) {
+        fprintf(arquivo, "%d,%s,%d,%.2f\n", 
+                lista[i].codigo, lista[i].nome, lista[i].quantidade, lista[i].preco);
+    }
+    fclose(arquivo);
+}
 
 void exibir_menu() {
     printf("\n====================================\n");
@@ -29,22 +66,37 @@ void cadastrar_produto(Produto lista[], int *total) {
 
     Produto p;
     printf("\n--- Cadastrar Produto ---\n");
+    
     printf("Codigo: ");
-    scanf("%d", &p.codigo);
-    
+    while (scanf("%d", &p.codigo) != 1) {
+        printf("Codigo invalido. Digite um numero: ");
+        limpar_buffer();
+    }
+    limpar_buffer();
+
     printf("Nome: ");
-    scanf(" %[^\n]", p.nome); // O espaço antes de % e [^\n] permite ler nomes com espaço
-    
+    scanf("%49[^\n]", p.nome);
+    limpar_buffer();
+
     printf("Quantidade: ");
-    scanf("%d", &p.quantidade);
-    
+    while (scanf("%d", &p.quantidade) != 1) {
+        printf("Quantidade invalida. Digite um numero: ");
+        limpar_buffer();
+    }
+    limpar_buffer();
+
     printf("Preco: ");
-    scanf("%f", &p.preco);
+    while (scanf("%f", &p.preco) != 1) {
+        printf("Preco invalido. Digite um valor numérico: ");
+        limpar_buffer();
+    }
+    limpar_buffer();
 
     lista[*total] = p;
     (*total)++;
 
-    printf("\nProduto cadastrado com sucesso!\n");
+    salvar_estoque(lista, *total);
+    printf("\nProduto cadastrado e salvo com sucesso!\n");
 }
 
 void listar_produtos(Produto lista[], int total) {
@@ -60,14 +112,48 @@ void listar_produtos(Produto lista[], int total) {
     }
 }
 
+void buscar_produto(Produto lista[], int total) {
+    if (total == 0) {
+        printf("\nNenhum produto cadastrado no estoque para buscar.\n");
+        return;
+    }
+
+    int codigo_busca;
+    printf("\n--- Buscar Produto ---\n");
+    printf("Digite o codigo do produto: ");
+    while (scanf("%d", &codigo_busca) != 1) {
+        printf("Codigo invalido. Digite um numero: ");
+        limpar_buffer();
+    }
+    limpar_buffer();
+
+    for (int i = 0; i < total; i++) {
+        if (lista[i].codigo == codigo_busca) {
+            printf("\nProduto Encontrado:\n");
+            printf("Codigo: %d | Nome: %s | Qtd: %d | Preco: R$ %.2f\n",
+                   lista[i].codigo, lista[i].nome, lista[i].quantidade, lista[i].preco);
+            return;
+        }
+    }
+
+    printf("\nProduto com o codigo %d nao foi encontrado.\n", codigo_busca);
+}
+
 int main() {
     Produto estoque[MAX_PRODUTOS];
     int total_produtos = 0;
     int opcao;
 
+    carregar_estoque(estoque, &total_produtos);
+
     do {
         exibir_menu();
-        scanf("%d", &opcao);
+        if (scanf("%d", &opcao) != 1) {
+            printf("\nOpcao invalida! Digite apenas numeros.\n");
+            limpar_buffer();
+            continue;
+        }
+        limpar_buffer();
 
         switch (opcao) {
             case 1:
@@ -77,10 +163,10 @@ int main() {
                 listar_produtos(estoque, total_produtos);
                 break;
             case 3:
-                printf("\n[Em breve] Busca por codigo...\n");
+                buscar_produto(estoque, total_produtos);
                 break;
             case 4:
-                printf("\nSaindo do sistema...\n");
+                printf("\nSaindo e salvando dados...\n");
                 break;
             default:
                 printf("\nOpcao invalida! Tente novamente.\n");
