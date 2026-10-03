@@ -1,5 +1,6 @@
-sistema_estoque
+/sistema_estoque
+/build/
 *.o
 *.bin
-*.dat
-*.csv
+/estoque.csv
+/estoque.csv.tmp
