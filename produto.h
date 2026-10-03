@@ -36,6 +36,7 @@ typedef enum
 
 void estoque_inicializar(Estoque *estoque);
 void estoque_liberar(Estoque *estoque);
+/* Origem e destino devem estar inicializados; a cópia não compartilha memória. */
 ResultadoEstoque estoque_copiar(const Estoque *origem, Estoque *destino);
 ResultadoEstoque estoque_cadastrar(Estoque *estoque, const Produto *produto);
 ResultadoEstoque estoque_editar(Estoque *estoque, int codigo, const Produto *produto);
