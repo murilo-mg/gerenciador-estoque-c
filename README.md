@@ -1,39 +1,40 @@
 # Gerenciador de estoque em C
 
-Gerenciador de estoque de terminal em C11, sem bibliotecas externas. Os produtos ficam em um vetor dinâmico e são persistidos em `estoque.csv`, no diretório de onde o programa é executado. Código, comentários e mensagens usam português; os textos são UTF-8.
+Estoque de terminal em C11, com cadastro, buscas, edição e movimentação.<br>
+Preços em centavos, salvamento seguro em CSV e alertas de estoque baixo.<br>
+Sem bibliotecas externas, com testes automatizados e sanitizers.
 
-## Funcionalidades
+![Menu e listagem de uma execução real do programa](docs/terminal.png)
 
-- Cadastro com código único e validação de nome, quantidade e preço.
-- Listagem e busca por código ou parte do nome.
-- Edição de código, nome, quantidade e preço, mantendo a unicidade do código.
-- Remoção de produtos.
-- Entrada e saída de quantidade, bloqueando saldo negativo e estouro numérico.
-- Alerta de estoque baixo (até 5 unidades), na abertura, nas listagens e após alterações.
-- Preços exatos em centavos, sem aritmética de ponto flutuante.
-- Gravação por arquivo temporário, com verificação de escrita, fechamento e renomeação.
+[Ver a transcrição completa da demonstração](docs/demonstracao.txt).
 
-## Compilar e executar
+## Começar a usar
 
-Requisitos: compilador C11 (GCC por padrão), Make e terminal com suporte a UTF-8. A configuração de integração contínua usa Linux.
+Requisitos: GCC com suporte a C11, Make e terminal UTF-8. O CI usa Linux.
 
 ```sh
 make
 make run
 ```
 
-Ou, diretamente:
+O programa salva `estoque.csv` no diretório de execução. Se o arquivo não existir, começa com um estoque vazio. Cada alteração é confirmada somente após salvar; uma falha cancela a alteração também em memória.
 
-```sh
-gcc -std=c11 -Wall -Wextra -Wpedantic main.c produto.c armazenamento.c -o sistema_estoque
-./sistema_estoque
-```
+## Menu
 
-`make all` gera `sistema_estoque`. `make clean` remove os binários, objetos e arquivos de teste em `build/`; preserva o CSV usado pelo programa.
+| Opção | Ação |
+| --- | --- |
+| 1 | Cadastrar produto |
+| 2 | Editar produto |
+| 3 | Remover produto |
+| 4 | Listar produtos |
+| 5 | Buscar por código |
+| 6 | Buscar por nome ou parte do nome |
+| 7 | Registrar entrada de quantidade |
+| 8 | Registrar saída de quantidade |
+| 9 | Listar estoque baixo, até 5 unidades |
+| 10 | Sair |
 
-## Exemplo de uso
-
-Selecione `1` para cadastrar e informe:
+No cadastro, digite um código único, nome, quantidade e preço. Um código repetido é informado imediatamente, antes dos outros campos. Na edição, o código pode ser mantido ou trocado por outro ainda não cadastrado.
 
 ```text
 Código: 101
@@ -43,65 +44,68 @@ Preço (R$): 12,90
 Alteração salva com sucesso.
 ```
 
-O preço aceita ponto ou vírgula decimal, com zero, uma ou duas casas. Valores negativos, notação científica, `nan`, `inf`, casas excedentes e lixo após o número são rejeitados.
+O preço aceita ponto ou vírgula e até duas casas decimais; a tela sempre exibe vírgula. Valores negativos, `nan`, `inf`, notação científica e casas excedentes são rejeitados. Uma saída acima do saldo disponível é bloqueada. A busca por nome diferencia maiúsculas, minúsculas e acentos.
 
-Use `7` para registrar uma entrada e `8` para uma saída. Uma saída de 11 unidades desse produto será recusada por saldo insuficiente. Use `5` para editar, preenchendo novamente os quatro campos, e `6` para remover por código. A busca por nome (`9`) encontra trechos e diferencia maiúsculas, minúsculas e acentos. A opção `10` lista apenas produtos com estoque baixo.
+A opção 10 ou EOF (Ctrl+D no Linux) encerra. Um formulário interrompido não é salvo. Os alertas de estoque baixo aparecem na abertura, nas listagens e após alterações.
 
-A opção `4` encerra. EOF (Ctrl+D no Linux) também encerra, inclusive no meio de um formulário; um formulário incompleto não é cadastrado. Cada alteração é salva imediatamente. Se a gravação falhar, a alteração é cancelada também em memória.
-
-## Formato do CSV
-
-UTF-8, sem cabeçalho ou BOM, um produto por linha, com quatro campos nesta ordem:
-
-```text
-codigo,nome,quantidade,preco_em_reais
-101,"Café, ""especial""",10,12.90
-102,"Arroz",3,7.50
-```
-
-O preço no arquivo usa ponto decimal e duas casas; internamente, `12.90` corresponde a 1290 centavos. Nomes são gravados entre aspas duplas; aspas no nome são duplicadas. A leitura também aceita nomes sem aspas do formato antigo, linhas LF ou CRLF e a última linha sem quebra final. Campos excedentes e aspas malformadas são rejeitados.
-
-Código deve ser positivo. Quantidade e preço podem ser zero. Códigos repetidos, valores negativos, nomes vazios, UTF-8 inválido, controles, bytes nulos e linhas grandes demais são considerados inválidos. A leitura avisa o número de cada linha inválida e continua até o fim, sem truncar a quantidade de produtos.
-
-Se houver linhas inválidas, o menu permite consultar os produtos válidos e bloqueia alterações para preservar o arquivo original. Faça uma cópia de segurança, corrija as linhas indicadas e reinicie. Um erro de leitura ou de alocação interrompe a abertura sem sobrescrever o CSV. A ausência do arquivo inicia um estoque vazio.
-
-A gravação cria `estoque.csv.tmp` no mesmo diretório, usando criação exclusiva de C11. Só após escrita, `fflush` e `fclose` bem-sucedidos o temporário é renomeado para `estoque.csv`. Uma falha preserva o CSV anterior. Um temporário existente nunca é truncado. Se sobrar após uma interrupção, confira seu conteúdo e remova-o ou mova-o manualmente antes de tentar salvar novamente, com o programa encerrado.
-
-## Testes
+## Testes e compilação
 
 ```sh
 make test
 make debug
 ```
 
-Os testes usam C11 e `assert`, sem frameworks ou bibliotecas externas. `make test` executa três conjuntos: regras e CSV; interação do menu com entradas simuladas; falhas de `malloc` e `realloc`. Os arquivos de teste ficam em `build/` e são removidos ao concluir.
+Os três conjuntos em `tests/` usam C11 e `assert`, sem frameworks: regras e CSV; interação do menu; falhas simuladas de `malloc` e `realloc`. Os arquivos temporários dos testes ficam em `build/` e são removidos ao concluir.
 
-A cobertura inclui cadastro, duplicidade, edição, remoção, saldo insuficiente, estouro de quantidade, estoque baixo, buscas, vetor com mais de 100 produtos, limites de preço, ida e volta do CSV, vírgulas e aspas no nome, formato antigo, arquivo ausente, linhas malformadas, UTF-8 inválido, linhas longas, bytes nulos, EOF durante formulários e cancelamento de alterações quando a gravação falha.
+A cobertura inclui todas as operações, duplicidade imediata no cadastro e na edição, preços com vírgula na tela e ponto no CSV, vetor com mais de 100 produtos, estouros numéricos, saldo insuficiente, arquivos ausentes ou corrompidos, UTF-8, caracteres invisíveis, entradas extensas, EOF, avisos sobre temporários e preservação dos dados quando a gravação ou a alocação falha.
 
-`make debug` gera `build/debug/sistema_estoque` e executa os mesmos testes com AddressSanitizer, UndefinedBehaviorSanitizer e LeakSanitizer. Para usar o menu instrumentado:
+`make debug` compila e executa os mesmos testes com AddressSanitizer, UndefinedBehaviorSanitizer e LeakSanitizer. Para usar o menu instrumentado:
 
 ```sh
 ./build/debug/sistema_estoque
 ```
 
-Execute LeakSanitizer fora de depuradores que usam `ptrace`. O GitHub Actions compila com `-Wall -Wextra -Wpedantic -Werror` e executa os testes normais e com sanitizers a cada push e pull request.
+Execute LeakSanitizer fora de depuradores que usam `ptrace`. O GitHub Actions compila com `-Wall -Wextra -Wpedantic -Werror` e executa os testes normais e instrumentados a cada push e pull request.
+
+Para compilar sem Make:
+
+```sh
+gcc -std=c11 -Wall -Wextra -Wpedantic src/main.c src/produto.c src/armazenamento.c -o sistema_estoque
+./sistema_estoque
+```
+
+`make all` gera o binário. `make clean` remove binários e `build/`, preservando o CSV usado pelo programa.
 
 ## Organização
 
-| Arquivo | Responsabilidade |
+| Caminho | Responsabilidade |
 | --- | --- |
-| `produto.h`, `produto.c` | Produtos, vetor dinâmico, validações e regras de estoque |
-| `armazenamento.h`, `armazenamento.c` | Leitura, diagnóstico e gravação do CSV |
-| `main.c` | Menu e interação com o usuário |
-| `testes.c` | Regras, conversões e persistência |
-| `testes_interacao.c` | Fluxos do menu, entradas inválidas e EOF |
-| `testes_memoria.c` | Falhas de alocação sem perda do estado anterior |
-| `Makefile` | Compilação, execução, testes, sanitizers e limpeza |
+| `src/main.c` | Menu e interação |
+| `src/produto.h`, `src/produto.c` | Vetor dinâmico, validações e regras do estoque |
+| `src/armazenamento.h`, `src/armazenamento.c` | CSV e gravação segura |
+| `tests/` | Testes de regras, interação e memória |
+| `docs/` | Captura e transcrição da demonstração |
+| `Makefile` | Compilação, execução, testes e limpeza |
+
+## Formato do CSV
+
+UTF-8, sem cabeçalho ou BOM, um produto por linha. Os quatro campos são código, nome, quantidade e preço em reais:
+
+```csv
+101,"Café, ""especial""",10,12.90
+102,"Arroz",3,7.50
+```
+
+O arquivo usa ponto decimal e duas casas; internamente, `12.90` são 1290 centavos. Nomes são gravados entre aspas e suas aspas internas são duplicadas. A leitura aceita o formato antigo com nomes sem aspas, LF ou CRLF e a última linha sem quebra final.
+
+Código deve ser positivo; quantidade e preço podem ser zero. Linhas malformadas ou com códigos repetidos são avisadas individualmente e ignoradas, e a leitura continua até o fim. Se houver linhas inválidas, o menu permite consultar os produtos válidos e bloqueia alterações para preservar o original. Faça uma cópia, corrija as linhas indicadas e reinicie. Erros de leitura ou de alocação interrompem a abertura sem sobrescrever o arquivo.
+
+A gravação cria `estoque.csv.tmp` de forma exclusiva no mesmo diretório. Só após escrita, `fflush` e `fclose` bem-sucedidos o temporário é renomeado para `estoque.csv`. Um temporário existente nunca é truncado: o programa avisa na abertura e as novas gravações falham enquanto ele existir. Com todas as instâncias encerradas, confira o conteúdo e mova ou remova o temporário antes de tentar novamente.
 
 ## Limitações conhecidas
 
-- Nomes têm no máximo 127 bytes UTF-8, incluindo espaços; não aceitam controles ou quebras de linha. O CSV admite linhas físicas de até 1023 bytes, suficientes para qualquer produto gerado pelo programa.
-- Código e quantidade usam `int`, limitados por `INT_MAX` (normalmente 2147483647). O preço máximo é R$ 92233720368547758.07 (`INT64_MAX` centavos). A quantidade de produtos é limitada pela memória disponível; buscas são lineares e uma alteração usa uma cópia temporária do estoque.
-- Use uma única instância por arquivo. Não há bloqueio do CSV contra execuções simultâneas ou alterações externas.
-- A substituição por `rename` é atômica em sistemas POSIX, como Linux. A biblioteca C11 não oferece sincronização física do disco (`fsync`): não há garantia de durabilidade em falta de energia. Em sistemas que não permitem substituir um arquivo existente por `rename`, a operação falha e preserva o arquivo anterior.
-- Um CSV corrompido exige correção manual antes de novas alterações; o programa não tenta adivinhar os dados perdidos.
+- Nomes têm até 127 bytes UTF-8. Controles, quebras de linha, controles de direção, espaço de largura zero, hifenização invisível, junções invisíveis de palavras e BOM são rejeitados. Nomes compostos apenas por espaços ou caracteres de formatação ignoráveis também são inválidos. Junções usadas na escrita e seletores de variação de emojis são preservados quando acompanham conteúdo visível. As faixas verificadas seguem o [Unicode 17.0](https://www.unicode.org/Public/17.0.0/ucd/PropList.txt) e suas [propriedades derivadas](https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt); não há normalização Unicode ou validação visual dependente da fonte. Arquivos antigos com caracteres agora rejeitados precisam de correção manual.
+- O alerta de estoque baixo usa o limite global de 5 unidades. Não há mínimo individual por produto.
+- Código e quantidade são limitados por `INT_MAX` (normalmente 2147483647). O preço máximo é R$ 92233720368547758,07 (`INT64_MAX` centavos). A quantidade de produtos depende da memória disponível; buscas são lineares e cada alteração usa uma cópia temporária do estoque.
+- Use uma instância por CSV. Não há bloqueio contra execuções simultâneas ou alterações externas. CSV corrompido e temporários deixados por interrupções exigem intervenção manual.
+- A substituição por `rename` é atômica em POSIX, como Linux. C11 não fornece `fsync`, portanto não há garantia de durabilidade em falta de energia. Em sistemas que não permitem substituir arquivos existentes por `rename`, a gravação falha e preserva o arquivo anterior.

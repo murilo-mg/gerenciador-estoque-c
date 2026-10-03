@@ -1,0 +1,67 @@
+Arquivo ausente: iniciando estoque vazio.
+
+=== GERENCIADOR DE ESTOQUE ===
+1. Cadastrar produto
+2. Editar produto
+3. Remover produto
+4. Listar produtos
+5. Buscar por código
+6. Buscar por nome
+7. Entrada de quantidade
+8. Saída de quantidade
+9. Listar estoque baixo (até 5 unidades)
+10. Sair
+Opção: 1
+Código: 101
+Nome: Café, "especial"
+Quantidade: 10
+Preço (R$): 12,90
+Alteração salva com sucesso.
+
+=== GERENCIADOR DE ESTOQUE ===
+1. Cadastrar produto
+2. Editar produto
+3. Remover produto
+4. Listar produtos
+5. Buscar por código
+6. Buscar por nome
+7. Entrada de quantidade
+8. Saída de quantidade
+9. Listar estoque baixo (até 5 unidades)
+10. Sair
+Opção: 1
+Código: 102
+Nome: Arroz
+Quantidade: 3
+Preço (R$): 7,50
+Alteração salva com sucesso.
+Código: 102 | Nome: Arroz | Quantidade: 3 | Preço: R$ 7,50 | ESTOQUE BAIXO
+
+=== GERENCIADOR DE ESTOQUE ===
+1. Cadastrar produto
+2. Editar produto
+3. Remover produto
+4. Listar produtos
+5. Buscar por código
+6. Buscar por nome
+7. Entrada de quantidade
+8. Saída de quantidade
+9. Listar estoque baixo (até 5 unidades)
+10. Sair
+Opção: 4
+Código: 101 | Nome: Café, "especial" | Quantidade: 10 | Preço: R$ 12,90
+Código: 102 | Nome: Arroz | Quantidade: 3 | Preço: R$ 7,50 | ESTOQUE BAIXO
+
+=== GERENCIADOR DE ESTOQUE ===
+1. Cadastrar produto
+2. Editar produto
+3. Remover produto
+4. Listar produtos
+5. Buscar por código
+6. Buscar por nome
+7. Entrada de quantidade
+8. Saída de quantidade
+9. Listar estoque baixo (até 5 unidades)
+10. Sair
+Opção: 10
+Encerrando. As alterações confirmadas já foram salvas.
