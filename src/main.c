@@ -74,7 +74,8 @@ static int ler_nome(const char *mensagem, char *nome)
     {
         if (nome_valido(nome))
             return 1;
-        puts("Nome inválido: use texto UTF-8 não vazio, sem caracteres de controle.");
+        puts("Nome inválido: use texto UTF-8 visível, sem controles, "
+             "espaços de largura zero ou caracteres de direção.");
     }
     return 0;
 }

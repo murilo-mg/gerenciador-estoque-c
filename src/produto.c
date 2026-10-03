@@ -18,7 +18,41 @@ void estoque_liberar(Estoque *estoque)
     estoque_inicializar(estoque);
 }
 
-/* Rejeita controles de terminal e sequências UTF-8 inválidas. */
+/* Faixas White_Space e Default_Ignorable_Code_Point do Unicode 17.0.
+ * https://www.unicode.org/Public/17.0.0/ucd/PropList.txt
+ * https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt */
+static int ponto_sem_conteudo(uint32_t ponto)
+{
+    return ponto == 0xa0 || ponto == 0x1680 ||
+           (ponto >= 0x2000 && ponto <= 0x200a) ||
+           ponto == 0x202f || ponto == 0x205f || ponto == 0x3000 ||
+           ponto == 0xad || ponto == 0x34f || ponto == 0x61c ||
+           (ponto >= 0x115f && ponto <= 0x1160) ||
+           (ponto >= 0x17b4 && ponto <= 0x17b5) ||
+           (ponto >= 0x180b && ponto <= 0x180f) ||
+           (ponto >= 0x200b && ponto <= 0x200f) ||
+           (ponto >= 0x202a && ponto <= 0x202e) ||
+           (ponto >= 0x2060 && ponto <= 0x206f) ||
+           ponto == 0x3164 || (ponto >= 0xfe00 && ponto <= 0xfe0f) ||
+           ponto == 0xfeff || ponto == 0xffa0 ||
+           (ponto >= 0xfff0 && ponto <= 0xfff8) ||
+           (ponto >= 0x1bca0 && ponto <= 0x1bca3) ||
+           (ponto >= 0x1d173 && ponto <= 0x1d17a) ||
+           (ponto >= 0xe0000 && ponto <= 0xe0fff);
+}
+
+/* Bloqueia controles de direção e caracteres que ocultam ou quebram o nome.
+ * Junções e seletores de variação continuam disponíveis para escrita e emojis. */
+static int ponto_proibido(uint32_t ponto)
+{
+    return ponto == 0xad || ponto == 0x61c || ponto == 0x200b ||
+           (ponto >= 0x200e && ponto <= 0x200f) ||
+           (ponto >= 0x2028 && ponto <= 0x202e) ||
+           (ponto >= 0x2060 && ponto <= 0x2064) ||
+           (ponto >= 0x2066 && ponto <= 0x2069) || ponto == 0xfeff;
+}
+
+/* Rejeita controles, sequências UTF-8 inválidas e nomes sem conteúdo visível. */
 int nome_valido(const char *nome)
 {
     size_t tamanho = 0;
@@ -68,9 +102,10 @@ int nome_valido(const char *nome)
         }
         if (ponto < minimo || ponto > 0x10ffff ||
             (ponto >= 0xd800 && ponto <= 0xdfff) ||
-            (ponto >= 0x80 && ponto <= 0x9f))
+            (ponto >= 0x80 && ponto <= 0x9f) || ponto_proibido(ponto))
             return 0;
-        visivel = 1;
+        if (!ponto_sem_conteudo(ponto))
+            visivel = 1;
     }
     return visivel;
 }

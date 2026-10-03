@@ -119,7 +119,8 @@ static void testar_entradas_extensas(void)
         assert(fputc('a', arquivo) != EOF);
     assert(fputs("\nNome", arquivo) >= 0);
     assert(fputc(0, arquivo) != EOF);
-    assert(fputs("injetado\n\033[2J\n\xc0\xaf\nNome válido\n0\n0.01\n10", arquivo) >= 0);
+    assert(fputs("injetado\n\033[2J\n\xc0\xaf\n\u200b\nNome\u202e\n\u200d\n"
+                 "Nome válido\n0\n0.01\n10", arquivo) >= 0);
     assert(fclose(arquivo) == 0);
     assert(freopen("entrada.txt", "rb", stdin) != NULL);
     assert(freopen("saida.txt", "wb", stdout) != NULL);
