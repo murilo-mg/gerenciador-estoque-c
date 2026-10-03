@@ -174,6 +174,9 @@ static void testar_csv(void)
     assert(carregar_estoque("arquivo-inexistente.csv", &carregado, &invalidas, avisos) == ARMAZENAMENTO_AUSENTE);
     assert(invalidas == 0 && carregado.total == 0);
     assert(estoque_cadastrar(&estoque, &produto) == ESTOQUE_OK);
+    assert(verificar_temporario(ARQUIVO_TESTE) == ARMAZENAMENTO_AUSENTE);
+    assert(verificar_temporario(NULL) == ARMAZENAMENTO_ERRO);
+    assert(verificar_temporario("") == ARMAZENAMENTO_ERRO);
     assert(salvar_estoque(ARQUIVO_TESTE, &estoque) == ARMAZENAMENTO_OK);
     verificar_arquivo(ARQUIVO_TESTE, "1,\"Café, \"\"especial\"\"\",5,12.34\n");
     assert(carregar_estoque(ARQUIVO_TESTE, &carregado, &invalidas, avisos) == ARMAZENAMENTO_OK);
@@ -182,10 +185,12 @@ static void testar_csv(void)
     assert(carregado.produtos[0].preco_centavos == 1234);
     assert(carregado.produtos[0].quantidade == 5);
     escrever_arquivo(TEMPORARIO_TESTE, "temporário preservado");
+    assert(verificar_temporario(ARQUIVO_TESTE) == ARMAZENAMENTO_OK);
     assert(salvar_estoque(ARQUIVO_TESTE, &estoque) == ARMAZENAMENTO_ERRO);
     verificar_arquivo(TEMPORARIO_TESTE, "temporário preservado");
     verificar_arquivo(ARQUIVO_TESTE, "1,\"Café, \"\"especial\"\"\",5,12.34\n");
     assert(remove(TEMPORARIO_TESTE) == 0);
+    assert(verificar_temporario(ARQUIVO_TESTE) == ARMAZENAMENTO_AUSENTE);
     estoque.produtos[0].quantidade = -1;
     assert(salvar_estoque(ARQUIVO_TESTE, &estoque) == ARMAZENAMENTO_ERRO);
     verificar_arquivo(ARQUIVO_TESTE, "1,\"Café, \"\"especial\"\"\",5,12.34\n");

@@ -161,22 +161,49 @@ static int escrever_produto(FILE *arquivo, const Produto *produto)
     return fprintf(arquivo, "\",%d,%s\n", produto->quantidade, preco) >= 0;
 }
 
+static char *caminho_temporario(const char *caminho)
+{
+    size_t tamanho = strlen(caminho);
+    char *temporario;
+    if (tamanho > SIZE_MAX - sizeof(".tmp"))
+        return NULL;
+    temporario = malloc(tamanho + sizeof(".tmp"));
+    if (temporario == NULL)
+        return NULL;
+    memcpy(temporario, caminho, tamanho);
+    memcpy(temporario + tamanho, ".tmp", sizeof(".tmp"));
+    return temporario;
+}
+
+ResultadoArmazenamento verificar_temporario(const char *caminho)
+{
+    char *temporario;
+    FILE *arquivo;
+    ResultadoArmazenamento resultado;
+    if (caminho == NULL || *caminho == '\0')
+        return ARMAZENAMENTO_ERRO;
+    temporario = caminho_temporario(caminho);
+    if (temporario == NULL)
+        return ARMAZENAMENTO_SEM_MEMORIA;
+    arquivo = fopen(temporario, "rb");
+    if (arquivo == NULL)
+        resultado = errno == ENOENT ? ARMAZENAMENTO_AUSENTE : ARMAZENAMENTO_ERRO;
+    else
+        resultado = fclose(arquivo) == 0 ? ARMAZENAMENTO_OK : ARMAZENAMENTO_ERRO;
+    free(temporario);
+    return resultado;
+}
+
 ResultadoArmazenamento salvar_estoque(const char *caminho, const Estoque *estoque)
 {
-    size_t tamanho;
     char *temporario;
     FILE *arquivo;
     int sucesso = 1;
     if (caminho == NULL || *caminho == '\0' || estoque == NULL)
         return ARMAZENAMENTO_ERRO;
-    tamanho = strlen(caminho);
-    if (tamanho > SIZE_MAX - sizeof(".tmp"))
-        return ARMAZENAMENTO_SEM_MEMORIA;
-    temporario = malloc(tamanho + sizeof(".tmp"));
+    temporario = caminho_temporario(caminho);
     if (temporario == NULL)
         return ARMAZENAMENTO_SEM_MEMORIA;
-    memcpy(temporario, caminho, tamanho);
-    memcpy(temporario + tamanho, ".tmp", sizeof(".tmp"));
     /* O modo exclusivo de C11 evita truncar temporários de outra execução. */
     arquivo = fopen(temporario, "wbx");
     if (arquivo == NULL)

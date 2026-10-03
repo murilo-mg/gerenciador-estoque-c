@@ -18,5 +18,7 @@ ResultadoArmazenamento carregar_estoque(const char *caminho, Estoque *estoque,
                                       size_t *linhas_invalidas, FILE *avisos);
 /* Não substitui um temporário existente; uma falha preserva o CSV anterior. */
 ResultadoArmazenamento salvar_estoque(const char *caminho, const Estoque *estoque);
+/* OK indica temporário presente; AUSENTE indica que o arquivo não existe. */
+ResultadoArmazenamento verificar_temporario(const char *caminho);
 
 #endif
