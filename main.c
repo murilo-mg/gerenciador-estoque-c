@@ -1,177 +1,260 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "armazenamento.h"
+#include "produto.h"
 
-#define MAX_PRODUTOS 100
+#include <limits.h>
+#include <stdio.h>
+
 #define NOME_ARQUIVO "estoque.csv"
 
-typedef struct {
+/* Consome a linha inteira, mesmo quando ela não cabe ou contém um byte nulo. */
+static int ler_texto(const char *mensagem, char *texto, size_t tamanho)
+{
+    size_t usados;
+    int caractere;
+    int invalida;
+    int recebeu;
+    for (;;)
+    {
+        usados = 0;
+        invalida = 0;
+        recebeu = 0;
+        fputs(mensagem, stdout);
+        fflush(stdout);
+        while ((caractere = getchar()) != EOF)
+        {
+            recebeu = 1;
+            if (caractere == '\n')
+                break;
+            if (caractere == '\0' || usados + 1 >= tamanho)
+                invalida = 1;
+            else
+                texto[usados++] = (char)caractere;
+        }
+        if (ferror(stdin) || (!recebeu && caractere == EOF))
+            return 0;
+        if (usados > 0 && texto[usados - 1] == '\r')
+            usados--;
+        texto[usados] = '\0';
+        if (!invalida)
+            return 1;
+        puts("Entrada muito longa ou inválida. Tente novamente.");
+    }
+}
+
+static int ler_inteiro(const char *mensagem, int minimo, int *valor)
+{
+    char texto[64];
+    while (ler_texto(mensagem, texto, sizeof(texto)))
+    {
+        if (inteiro_converter(texto, valor) && *valor >= minimo)
+            return 1;
+        printf("Digite um inteiro entre %d e %d.\n", minimo, INT_MAX);
+    }
+    return 0;
+}
+
+static int ler_nome(const char *mensagem, char *nome)
+{
+    while (ler_texto(mensagem, nome, TAMANHO_NOME))
+    {
+        if (nome_valido(nome))
+            return 1;
+        puts("Nome inválido: use texto UTF-8 não vazio, sem caracteres de controle.");
+    }
+    return 0;
+}
+
+static int ler_produto(Produto *produto)
+{
+    char texto[64];
+    if (!ler_inteiro("Código: ", 1, &produto->codigo) ||
+        !ler_nome("Nome: ", produto->nome) ||
+        !ler_inteiro("Quantidade: ", 0, &produto->quantidade))
+        return 0;
+    while (ler_texto("Preço (R$): ", texto, sizeof(texto)))
+    {
+        if (preco_converter(texto, &produto->preco_centavos))
+            return 1;
+        puts("Preço inválido: use valor não negativo com até duas casas decimais.");
+    }
+    return 0;
+}
+
+static void exibir_produto(const Produto *produto)
+{
+    char preco[TAMANHO_PRECO];
+    if (!preco_formatar(produto->preco_centavos, preco, sizeof(preco)))
+        return;
+    printf("Código: %d | Nome: %s | Quantidade: %d | Preço: R$ %s%s\n",
+           produto->codigo, produto->nome, produto->quantidade, preco,
+           produto_estoque_baixo(produto) ? " | ESTOQUE BAIXO" : "");
+}
+
+static void listar_produtos(const Estoque *estoque, int apenas_baixos)
+{
+    size_t encontrados = 0;
+    for (size_t i = 0; i < estoque->total; i++)
+    {
+        if (!apenas_baixos || produto_estoque_baixo(&estoque->produtos[i]))
+        {
+            exibir_produto(&estoque->produtos[i]);
+            encontrados++;
+        }
+    }
+    if (encontrados == 0)
+        puts(apenas_baixos ? "Nenhum produto com estoque baixo." : "Nenhum produto cadastrado.");
+}
+
+static void buscar_codigo(const Estoque *estoque)
+{
     int codigo;
-    char nome[50];
-    int quantidade;
-    float preco;
-} Produto;
-
-void limpar_buffer() {
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF);
-}
-
-void carregar_estoque(Produto lista[], int *total) {
-    FILE *arquivo = fopen(NOME_ARQUIVO, "r");
-    if (arquivo == NULL) return;
-
-    *total = 0;
-    while (fscanf(arquivo, "%d,%49[^,],%d,%f\n", 
-                  &lista[*total].codigo, 
-                  lista[*total].nome, 
-                  &lista[*total].quantidade, 
-                  &lista[*total].preco) == 4) {
-        (*total)++;
-        if (*total >= MAX_PRODUTOS) break;
-    }
-    fclose(arquivo);
-}
-
-void salvar_estoque(Produto lista[], int total) {
-    FILE *arquivo = fopen(NOME_ARQUIVO, "w");
-    if (arquivo == NULL) {
-        printf("\nErro ao salvar os dados!\n");
+    const Produto *produto;
+    if (!ler_inteiro("Código: ", 1, &codigo))
         return;
-    }
-
-    for (int i = 0; i < total; i++) {
-        fprintf(arquivo, "%d,%s,%d,%.2f\n", 
-                lista[i].codigo, lista[i].nome, lista[i].quantidade, lista[i].preco);
-    }
-    fclose(arquivo);
+    produto = estoque_buscar_codigo(estoque, codigo);
+    if (produto != NULL)
+        exibir_produto(produto);
+    else
+        puts("Produto não encontrado.");
 }
 
-void exibir_menu() {
-    printf("\n====================================\n");
-    printf("    GERENCIADOR DE ESTOQUE (C)\n");
-    printf("====================================\n");
-    printf("1. Cadastrar Produto\n");
-    printf("2. Listar Produtos\n");
-    printf("3. Buscar Produto por Codigo\n");
-    printf("4. Sair\n");
-    printf("Opcao: ");
-}
-
-void cadastrar_produto(Produto lista[], int *total) {
-    if (*total >= MAX_PRODUTOS) {
-        printf("\nErro: Estoque cheio!\n");
+static void buscar_nome(const Estoque *estoque)
+{
+    char nome[TAMANHO_NOME];
+    size_t posicao = 0;
+    size_t encontrados = 0;
+    const Produto *produto;
+    if (!ler_nome("Nome ou parte do nome: ", nome))
         return;
+    while ((produto = estoque_buscar_nome(estoque, nome, &posicao)) != NULL)
+    {
+        exibir_produto(produto);
+        encontrados++;
     }
-
-    Produto p;
-    printf("\n--- Cadastrar Produto ---\n");
-    
-    printf("Codigo: ");
-    while (scanf("%d", &p.codigo) != 1) {
-        printf("Codigo invalido. Digite um numero: ");
-        limpar_buffer();
-    }
-    limpar_buffer();
-
-    printf("Nome: ");
-    scanf("%49[^\n]", p.nome);
-    limpar_buffer();
-
-    printf("Quantidade: ");
-    while (scanf("%d", &p.quantidade) != 1) {
-        printf("Quantidade invalida. Digite um numero: ");
-        limpar_buffer();
-    }
-    limpar_buffer();
-
-    printf("Preco: ");
-    while (scanf("%f", &p.preco) != 1) {
-        printf("Preco invalido. Digite um valor numérico: ");
-        limpar_buffer();
-    }
-    limpar_buffer();
-
-    lista[*total] = p;
-    (*total)++;
-
-    salvar_estoque(lista, *total);
-    printf("\nProduto cadastrado e salvo com sucesso!\n");
+    if (encontrados == 0)
+        puts("Produto não encontrado.");
 }
 
-void listar_produtos(Produto lista[], int total) {
-    if (total == 0) {
-        printf("\nNenhum produto cadastrado no estoque.\n");
-        return;
-    }
-
-    printf("\n--- Lista de Produtos ---\n");
-    for (int i = 0; i < total; i++) {
-        printf("Codigo: %d | Nome: %s | Qtd: %d | Preco: R$ %.2f\n",
-               lista[i].codigo, lista[i].nome, lista[i].quantidade, lista[i].preco);
-    }
-}
-
-void buscar_produto(Produto lista[], int total) {
-    if (total == 0) {
-        printf("\nNenhum produto cadastrado no estoque para buscar.\n");
-        return;
-    }
-
-    int codigo_busca;
-    printf("\n--- Buscar Produto ---\n");
-    printf("Digite o codigo do produto: ");
-    while (scanf("%d", &codigo_busca) != 1) {
-        printf("Codigo invalido. Digite um numero: ");
-        limpar_buffer();
-    }
-    limpar_buffer();
-
-    for (int i = 0; i < total; i++) {
-        if (lista[i].codigo == codigo_busca) {
-            printf("\nProduto Encontrado:\n");
-            printf("Codigo: %d | Nome: %s | Qtd: %d | Preco: R$ %.2f\n",
-                   lista[i].codigo, lista[i].nome, lista[i].quantidade, lista[i].preco);
+static void alterar_estoque(Estoque *estoque, int opcao)
+{
+    Estoque alterado = {0};
+    Produto produto = {0};
+    int codigo = 0;
+    int quantidade = 0;
+    ResultadoEstoque resultado;
+    if (opcao != 1)
+    {
+        if (!ler_inteiro("Código do produto: ", 1, &codigo))
+            return;
+        if (estoque_buscar_codigo(estoque, codigo) == NULL)
+        {
+            puts("Produto não encontrado.");
             return;
         }
     }
-
-    printf("\nProduto com o codigo %d nao foi encontrado.\n", codigo_busca);
+    if ((opcao == 1 || opcao == 5) && !ler_produto(&produto))
+        return;
+    if ((opcao == 7 || opcao == 8) && !ler_inteiro("Quantidade da movimentação: ", 1, &quantidade))
+        return;
+    resultado = estoque_copiar(estoque, &alterado);
+    if (resultado != ESTOQUE_OK)
+    {
+        puts(estoque_mensagem(resultado));
+        return;
+    }
+    switch (opcao)
+    {
+    case 1: resultado = estoque_cadastrar(&alterado, &produto); break;
+    case 5: resultado = estoque_editar(&alterado, codigo, &produto); break;
+    case 6: resultado = estoque_remover(&alterado, codigo); break;
+    case 7: case 8:
+        resultado = estoque_movimentar(&alterado, codigo, quantidade, opcao == 7);
+        break;
+    default: resultado = ESTOQUE_INVALIDO; break;
+    }
+    if (resultado != ESTOQUE_OK)
+        puts(estoque_mensagem(resultado));
+    else if (salvar_estoque(NOME_ARQUIVO, &alterado) != ARMAZENAMENTO_OK)
+        fputs("Erro ao salvar. A alteração foi cancelada; verifique permissões e estoque.csv.tmp.\n", stderr);
+    else
+    {
+        estoque_liberar(estoque);
+        *estoque = alterado;
+        estoque_inicializar(&alterado);
+        puts("Alteração salva com sucesso.");
+        if (opcao != 6)
+        {
+            const Produto *salvo = estoque_buscar_codigo(estoque,
+                                      opcao == 1 || opcao == 5 ? produto.codigo : codigo);
+            if (salvo != NULL && produto_estoque_baixo(salvo))
+                exibir_produto(salvo);
+        }
+    }
+    estoque_liberar(&alterado);
 }
 
-int main() {
-    Produto estoque[MAX_PRODUTOS];
-    int total_produtos = 0;
+static void exibir_menu(void)
+{
+    puts("\n=== GERENCIADOR DE ESTOQUE ===\n"
+         "1. Cadastrar produto\n"
+         "2. Listar produtos\n"
+         "3. Buscar por código\n"
+         "4. Sair\n"
+         "5. Editar produto\n"
+         "6. Remover produto\n"
+         "7. Entrada de quantidade\n"
+         "8. Saída de quantidade\n"
+         "9. Buscar por nome\n"
+         "10. Listar estoque baixo (até 5 unidades)");
+}
+
+int main(void)
+{
+    Estoque estoque = {0};
+    size_t linhas_invalidas;
+    ResultadoArmazenamento carga = carregar_estoque(NOME_ARQUIVO, &estoque,
+                                                   &linhas_invalidas, stderr);
     int opcao;
-
-    carregar_estoque(estoque, &total_produtos);
-
-    do {
+    int retorno = 0;
+    if (carga != ARMAZENAMENTO_OK && carga != ARMAZENAMENTO_AUSENTE)
+    {
+        fputs("Erro ao carregar estoque. O arquivo foi preservado.\n", stderr);
+        estoque_liberar(&estoque);
+        return 1;
+    }
+    if (carga == ARMAZENAMENTO_AUSENTE)
+        puts("Arquivo ausente: iniciando estoque vazio.");
+    if (linhas_invalidas > 0)
+        fputs("CSV contém linhas inválidas. Consulta disponível; corrija o arquivo e reinicie para alterar.\n", stderr);
+    for (size_t i = 0; i < estoque.total; i++)
+        if (produto_estoque_baixo(&estoque.produtos[i]))
+            exibir_produto(&estoque.produtos[i]);
+    for (;;)
+    {
         exibir_menu();
-        if (scanf("%d", &opcao) != 1) {
-            printf("\nOpcao invalida! Digite apenas numeros.\n");
-            limpar_buffer();
-            continue;
+        if (!ler_inteiro("Opção: ", 1, &opcao) || opcao == 4)
+            break;
+        switch (opcao)
+        {
+        case 1: case 5: case 6: case 7: case 8:
+            if (linhas_invalidas > 0)
+                puts("Alteração bloqueada: corrija as linhas inválidas do CSV e reinicie.");
+            else
+                alterar_estoque(&estoque, opcao);
+            break;
+        case 2: listar_produtos(&estoque, 0); break;
+        case 3: buscar_codigo(&estoque); break;
+        case 9: buscar_nome(&estoque); break;
+        case 10: listar_produtos(&estoque, 1); break;
+        default: puts("Opção inválida."); break;
         }
-        limpar_buffer();
-
-        switch (opcao) {
-            case 1:
-                cadastrar_produto(estoque, &total_produtos);
-                break;
-            case 2:
-                listar_produtos(estoque, total_produtos);
-                break;
-            case 3:
-                buscar_produto(estoque, total_produtos);
-                break;
-            case 4:
-                printf("\nSaindo e salvando dados...\n");
-                break;
-            default:
-                printf("\nOpcao invalida! Tente novamente.\n");
-        }
-    } while (opcao != 4);
-
-    return 0;
+    }
+    if (ferror(stdin))
+    {
+        fputs("Erro de leitura da entrada.\n", stderr);
+        retorno = 1;
+    }
+    puts("Encerrando. As alterações confirmadas já foram salvas.");
+    estoque_liberar(&estoque);
+    return retorno;
 }
