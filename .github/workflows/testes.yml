@@ -1,0 +1,19 @@
+name: Compilação e testes
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obter código
+        uses: actions/checkout@v4
+      - name: Compilar sem avisos e executar testes
+        run: make all test CFLAGS='-std=c11 -Wall -Wextra -Wpedantic -Werror -O2'
+      - name: Verificar memória e comportamento indefinido
+        run: make debug AVISOS='-std=c11 -Wall -Wextra -Wpedantic -Werror'
