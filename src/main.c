@@ -3,8 +3,23 @@
 
 #include <limits.h>
 #include <stdio.h>
+#include <string.h>
 
 #define NOME_ARQUIVO "estoque.csv"
+
+typedef enum
+{
+    OPCAO_CADASTRAR = 1,
+    OPCAO_EDITAR,
+    OPCAO_REMOVER,
+    OPCAO_LISTAR,
+    OPCAO_BUSCAR_CODIGO,
+    OPCAO_BUSCAR_NOME,
+    OPCAO_ENTRADA,
+    OPCAO_SAIDA,
+    OPCAO_ESTOQUE_BAIXO,
+    OPCAO_SAIR
+} OpcaoMenu;
 
 /* Consome a linha inteira, mesmo quando ela não cabe ou contém um byte nulo. */
 static int ler_texto(const char *mensagem, char *texto, size_t tamanho)
@@ -59,16 +74,24 @@ static int ler_nome(const char *mensagem, char *nome)
     {
         if (nome_valido(nome))
             return 1;
-        puts("Nome inválido: use texto UTF-8 não vazio, sem caracteres de controle.");
+        puts("Nome inválido: use texto UTF-8 visível, sem controles, "
+             "espaços de largura zero ou caracteres de direção.");
     }
     return 0;
 }
 
-static int ler_produto(Produto *produto)
+static int ler_produto(const Estoque *estoque, int codigo_original, Produto *produto)
 {
     char texto[64];
-    if (!ler_inteiro("Código: ", 1, &produto->codigo) ||
-        !ler_nome("Nome: ", produto->nome) ||
+    if (!ler_inteiro("Código: ", 1, &produto->codigo))
+        return 0;
+    if (produto->codigo != codigo_original &&
+        estoque_buscar_codigo(estoque, produto->codigo) != NULL)
+    {
+        puts("Código já cadastrado.");
+        return 0;
+    }
+    if (!ler_nome("Nome: ", produto->nome) ||
         !ler_inteiro("Quantidade: ", 0, &produto->quantidade))
         return 0;
     while (ler_texto("Preço (R$): ", texto, sizeof(texto)))
@@ -83,8 +106,12 @@ static int ler_produto(Produto *produto)
 static void exibir_produto(const Produto *produto)
 {
     char preco[TAMANHO_PRECO];
+    char *separador;
     if (!preco_formatar(produto->preco_centavos, preco, sizeof(preco)))
         return;
+    separador = strchr(preco, '.');
+    if (separador != NULL)
+        *separador = ',';
     printf("Código: %d | Nome: %s | Quantidade: %d | Preço: R$ %s%s\n",
            produto->codigo, produto->nome, produto->quantidade, preco,
            produto_estoque_baixo(produto) ? " | ESTOQUE BAIXO" : "");
@@ -142,7 +169,7 @@ static void alterar_estoque(Estoque *estoque, int opcao)
     int codigo = 0;
     int quantidade = 0;
     ResultadoEstoque resultado;
-    if (opcao != 1)
+    if (opcao != OPCAO_CADASTRAR)
     {
         if (!ler_inteiro("Código do produto: ", 1, &codigo))
             return;
@@ -152,9 +179,11 @@ static void alterar_estoque(Estoque *estoque, int opcao)
             return;
         }
     }
-    if ((opcao == 1 || opcao == 5) && !ler_produto(&produto))
+    if ((opcao == OPCAO_CADASTRAR || opcao == OPCAO_EDITAR) &&
+        !ler_produto(estoque, codigo, &produto))
         return;
-    if ((opcao == 7 || opcao == 8) && !ler_inteiro("Quantidade da movimentação: ", 1, &quantidade))
+    if ((opcao == OPCAO_ENTRADA || opcao == OPCAO_SAIDA) &&
+        !ler_inteiro("Quantidade da movimentação: ", 1, &quantidade))
         return;
     resultado = estoque_copiar(estoque, &alterado);
     if (resultado != ESTOQUE_OK)
@@ -164,11 +193,11 @@ static void alterar_estoque(Estoque *estoque, int opcao)
     }
     switch (opcao)
     {
-    case 1: resultado = estoque_cadastrar(&alterado, &produto); break;
-    case 5: resultado = estoque_editar(&alterado, codigo, &produto); break;
-    case 6: resultado = estoque_remover(&alterado, codigo); break;
-    case 7: case 8:
-        resultado = estoque_movimentar(&alterado, codigo, quantidade, opcao == 7);
+    case OPCAO_CADASTRAR: resultado = estoque_cadastrar(&alterado, &produto); break;
+    case OPCAO_EDITAR: resultado = estoque_editar(&alterado, codigo, &produto); break;
+    case OPCAO_REMOVER: resultado = estoque_remover(&alterado, codigo); break;
+    case OPCAO_ENTRADA: case OPCAO_SAIDA:
+        resultado = estoque_movimentar(&alterado, codigo, quantidade, opcao == OPCAO_ENTRADA);
         break;
     default: resultado = ESTOQUE_INVALIDO; break;
     }
@@ -182,10 +211,11 @@ static void alterar_estoque(Estoque *estoque, int opcao)
         *estoque = alterado;
         estoque_inicializar(&alterado);
         puts("Alteração salva com sucesso.");
-        if (opcao != 6)
+        if (opcao != OPCAO_REMOVER)
         {
             const Produto *salvo = estoque_buscar_codigo(estoque,
-                                      opcao == 1 || opcao == 5 ? produto.codigo : codigo);
+                                      opcao == OPCAO_CADASTRAR || opcao == OPCAO_EDITAR ?
+                                      produto.codigo : codigo);
             if (salvo != NULL && produto_estoque_baixo(salvo))
                 exibir_produto(salvo);
         }
@@ -197,15 +227,15 @@ static void exibir_menu(void)
 {
     puts("\n=== GERENCIADOR DE ESTOQUE ===\n"
          "1. Cadastrar produto\n"
-         "2. Listar produtos\n"
-         "3. Buscar por código\n"
-         "4. Sair\n"
-         "5. Editar produto\n"
-         "6. Remover produto\n"
+         "2. Editar produto\n"
+         "3. Remover produto\n"
+         "4. Listar produtos\n"
+         "5. Buscar por código\n"
+         "6. Buscar por nome\n"
          "7. Entrada de quantidade\n"
          "8. Saída de quantidade\n"
-         "9. Buscar por nome\n"
-         "10. Listar estoque baixo (até 5 unidades)");
+         "9. Listar estoque baixo (até 5 unidades)\n"
+         "10. Sair");
 }
 
 int main(void)
@@ -216,6 +246,12 @@ int main(void)
                                                    &linhas_invalidas, stderr);
     int opcao;
     int retorno = 0;
+    ResultadoArmazenamento temporario = verificar_temporario(NOME_ARQUIVO);
+    if (temporario == ARMAZENAMENTO_OK)
+        puts("Aviso: estoque.csv.tmp já existe. Confira seu conteúdo e mova-o ou remova-o "
+             "com o programa encerrado; novas gravações serão bloqueadas enquanto ele existir.");
+    else if (temporario != ARMAZENAMENTO_AUSENTE)
+        fputs("Aviso: não foi possível verificar estoque.csv.tmp. Confira as permissões.\n", stderr);
     if (carga != ARMAZENAMENTO_OK && carga != ARMAZENAMENTO_AUSENTE)
     {
         fputs("Erro ao carregar estoque. O arquivo foi preservado.\n", stderr);
@@ -232,20 +268,21 @@ int main(void)
     for (;;)
     {
         exibir_menu();
-        if (!ler_inteiro("Opção: ", 1, &opcao) || opcao == 4)
+        if (!ler_inteiro("Opção: ", 1, &opcao) || opcao == OPCAO_SAIR)
             break;
         switch (opcao)
         {
-        case 1: case 5: case 6: case 7: case 8:
+        case OPCAO_CADASTRAR: case OPCAO_EDITAR: case OPCAO_REMOVER:
+        case OPCAO_ENTRADA: case OPCAO_SAIDA:
             if (linhas_invalidas > 0)
                 puts("Alteração bloqueada: corrija as linhas inválidas do CSV e reinicie.");
             else
                 alterar_estoque(&estoque, opcao);
             break;
-        case 2: listar_produtos(&estoque, 0); break;
-        case 3: buscar_codigo(&estoque); break;
-        case 9: buscar_nome(&estoque); break;
-        case 10: listar_produtos(&estoque, 1); break;
+        case OPCAO_LISTAR: listar_produtos(&estoque, 0); break;
+        case OPCAO_BUSCAR_CODIGO: buscar_codigo(&estoque); break;
+        case OPCAO_BUSCAR_NOME: buscar_nome(&estoque); break;
+        case OPCAO_ESTOQUE_BAIXO: listar_produtos(&estoque, 1); break;
         default: puts("Opção inválida."); break;
         }
     }

@@ -95,6 +95,26 @@ static void testar_nomes(void)
     assert(!nome_valido("\xed\xa0\x80"));
     assert(!nome_valido("\xf4\x90\x80\x80"));
     assert(!nome_valido("\xc2\x85"));
+    const char *proibidos[] = {"\u00ad", "\u061c", "\u200b", "\u200e", "\u200f",
+        "\u2028", "\u2029", "\u202a", "\u202b", "\u202c", "\u202d", "\u202e",
+        "\u2060", "\u2061", "\u2062", "\u2063", "\u2064", "\u2066", "\u2067",
+        "\u2068", "\u2069", "\ufeff"};
+    for (size_t i = 0; i < sizeof(proibidos) / sizeof(proibidos[0]); i++)
+    {
+        char nome[TAMANHO_NOME];
+        assert(!nome_valido(proibidos[i]));
+        assert(snprintf(nome, sizeof(nome), "Café%s", proibidos[i]) > 0);
+        assert(!nome_valido(nome));
+    }
+    const char *sem_conteudo[] = {"\u00a0", "\u1680", "\u2000\u2009", "\u202f",
+        "\u205f", "\u3000", "\u034f", "\u115f", "\u17b4", "\u180b",
+        "\u200c\u200d", "\u3164", "\ufe0f", "\uffa0", "\U000e0100"};
+    for (size_t i = 0; i < sizeof(sem_conteudo) / sizeof(sem_conteudo[0]); i++)
+        assert(!nome_valido(sem_conteudo[i]));
+    assert(nome_valido("Cafe\u0301"));
+    assert(nome_valido("👩\u200d💻"));
+    assert(nome_valido("❤️"));
+    assert(nome_valido("Café\u00a0especial"));
 }
 
 static void testar_regras(void)
@@ -174,6 +194,9 @@ static void testar_csv(void)
     assert(carregar_estoque("arquivo-inexistente.csv", &carregado, &invalidas, avisos) == ARMAZENAMENTO_AUSENTE);
     assert(invalidas == 0 && carregado.total == 0);
     assert(estoque_cadastrar(&estoque, &produto) == ESTOQUE_OK);
+    assert(verificar_temporario(ARQUIVO_TESTE) == ARMAZENAMENTO_AUSENTE);
+    assert(verificar_temporario(NULL) == ARMAZENAMENTO_ERRO);
+    assert(verificar_temporario("") == ARMAZENAMENTO_ERRO);
     assert(salvar_estoque(ARQUIVO_TESTE, &estoque) == ARMAZENAMENTO_OK);
     verificar_arquivo(ARQUIVO_TESTE, "1,\"Café, \"\"especial\"\"\",5,12.34\n");
     assert(carregar_estoque(ARQUIVO_TESTE, &carregado, &invalidas, avisos) == ARMAZENAMENTO_OK);
@@ -182,10 +205,12 @@ static void testar_csv(void)
     assert(carregado.produtos[0].preco_centavos == 1234);
     assert(carregado.produtos[0].quantidade == 5);
     escrever_arquivo(TEMPORARIO_TESTE, "temporário preservado");
+    assert(verificar_temporario(ARQUIVO_TESTE) == ARMAZENAMENTO_OK);
     assert(salvar_estoque(ARQUIVO_TESTE, &estoque) == ARMAZENAMENTO_ERRO);
     verificar_arquivo(TEMPORARIO_TESTE, "temporário preservado");
     verificar_arquivo(ARQUIVO_TESTE, "1,\"Café, \"\"especial\"\"\",5,12.34\n");
     assert(remove(TEMPORARIO_TESTE) == 0);
+    assert(verificar_temporario(ARQUIVO_TESTE) == ARMAZENAMENTO_AUSENTE);
     estoque.produtos[0].quantidade = -1;
     assert(salvar_estoque(ARQUIVO_TESTE, &estoque) == ARMAZENAMENTO_ERRO);
     verificar_arquivo(ARQUIVO_TESTE, "1,\"Café, \"\"especial\"\"\",5,12.34\n");
@@ -240,12 +265,30 @@ static void testar_csv(void)
     assert(remove(ARQUIVO_TESTE) == 0);
 }
 
+static void testar_unicode_csv(void)
+{
+    Estoque estoque = {0};
+    size_t invalidas;
+    escrever_arquivo(ARQUIVO_TESTE,
+        "1,\"\u200b\",10,1.00\n"
+        "2,\"Café\u202e\",10,1.00\n"
+        "3,\"\u200d\ufe0f\",10,1.00\n"
+        "4,\"Café 👩\u200d💻\",10,1.00\n");
+    assert(carregar_estoque(ARQUIVO_TESTE, &estoque, &invalidas, NULL) == ARMAZENAMENTO_OK);
+    assert(invalidas == 3 && estoque.total == 1 && estoque.produtos[0].codigo == 4);
+    assert(salvar_estoque(ARQUIVO_TESTE, &estoque) == ARMAZENAMENTO_OK);
+    verificar_arquivo(ARQUIVO_TESTE, "4,\"Café 👩\u200d💻\",10,1.00\n");
+    estoque_liberar(&estoque);
+    assert(remove(ARQUIVO_TESTE) == 0);
+}
+
 int main(void)
 {
     testar_conversoes();
     testar_nomes();
     testar_regras();
     testar_csv();
+    testar_unicode_csv();
     puts("Todos os testes passaram.");
     return 0;
 }

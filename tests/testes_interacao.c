@@ -41,17 +41,18 @@ static void testar_menu(void)
 {
     executar("texto\n999999999999999999999\n99\n"
              "1\n-1\n0\n1\n\n   \nCafé, \"especial\"\n-1\n10\nnan\n1.234\n12,34\n"
-             "1\n1\nDuplicado\n1\n2.00\n"
-             "3\n1\n9\nCafé\n"
-             "8\n1\n11\n7\n1\n5\n8\n1\n10\n10\n"
-             "5\n1\n2\nArroz\n2\n3.45\n2\n6\n2\n2\n4\n");
+             "1\n1\n"
+             "5\n1\n6\nCafé\n"
+             "8\n1\n11\n7\n1\n5\n8\n1\n10\n9\n"
+             "2\n1\n2\nArroz\n2\n3.45\n4\n3\n2\n4\n10\n");
     assert(contem("saida.txt", "Opção inválida."));
     assert(contem("saida.txt", "Nome inválido"));
     assert(contem("saida.txt", "Preço inválido"));
     assert(contem("saida.txt", "Código já cadastrado."));
     assert(contem("saida.txt", "Saldo insuficiente."));
     assert(contem("saida.txt", "ESTOQUE BAIXO"));
-    assert(contem("saida.txt", "Nome: Arroz | Quantidade: 2 | Preço: R$ 3.45"));
+    assert(contem("saida.txt", "Nome: Arroz | Quantidade: 2 | Preço: R$ 3,45"));
+    assert(contem("saida.txt", "9. Listar estoque baixo (até 5 unidades)\n10. Sair\nOpção:"));
     assert(contem("saida.txt", "Nenhum produto cadastrado."));
     assert(!contem("estoque.csv", "Arroz"));
     assert(remove("estoque.csv") == 0);
@@ -59,7 +60,7 @@ static void testar_menu(void)
 
 static void testar_fim_entrada(void)
 {
-    const char *entradas[] = {"", "inválida", "1\n", "1\n1\n", "1\n1\nNome\n", "1\n1\nNome\n1\n", "3\n", "5\n", "9\n"};
+    const char *entradas[] = {"", "inválida", "1\n", "1\n1\n", "1\n1\nNome\n", "1\n1\nNome\n1\n", "2\n", "3\n", "5\n", "6\n", "7\n", "8\n"};
     for (size_t i = 0; i < sizeof(entradas) / sizeof(entradas[0]); i++)
     {
         executar(entradas[i]);
@@ -72,16 +73,39 @@ static void testar_fim_entrada(void)
 static void testar_preservacao(void)
 {
     escrever("estoque.csv", "1,Válido,10,2.50\ncorrompido\n2,Outro,10,3.00\n");
-    executar("2\n1\n4\n");
+    executar("4\n1\n10\n");
     assert(contem("saida.txt", "Código: 2 | Nome: Outro"));
     assert(contem("saida.txt", "Alteração bloqueada"));
     assert(contem("estoque.csv", "corrompido"));
     assert(remove("estoque.csv") == 0);
     escrever("estoque.csv.tmp", "temporário de outra execução");
-    executar("1\n1\nProduto\n1\n2.00\n2\n4\n");
+    executar("10\n");
+    assert(contem("saida.txt", "Aviso: estoque.csv.tmp já existe."));
+    assert(contem("saida.txt", "com o programa encerrado"));
+    assert(contem("estoque.csv.tmp", "temporário de outra execução"));
+    executar("1\n1\nProduto\n1\n2.00\n4\n10\n");
     assert(contem("saida.txt", "Nenhum produto cadastrado."));
     assert(contem("estoque.csv.tmp", "temporário de outra execução"));
     assert(remove("estoque.csv.tmp") == 0);
+}
+
+static void testar_duplicidade_e_preco(void)
+{
+    escrever("estoque.csv", "1,Produto,10,1.00\n2,Outro,10,2.00\n");
+    executar("1\n1\n10\n");
+    assert(contem("saida.txt", "Código já cadastrado.\n\n=== GERENCIADOR"));
+    assert(!contem("saida.txt", "Nome: "));
+    assert(!contem("saida.txt", "Preço (R$): "));
+    executar("2\n1\n2\n10\n");
+    assert(contem("saida.txt", "Código já cadastrado."));
+    assert(!contem("saida.txt", "Nome: "));
+    assert(contem("estoque.csv", "1,Produto,10,1.00"));
+    executar("2\n1\n1\nCafé\n10\n12,90\n4\n10\n");
+    assert(contem("saida.txt", "Código: 1 | Nome: Café | Quantidade: 10 | Preço: R$ 12,90"));
+    assert(!contem("saida.txt", "R$ 12.90"));
+    assert(contem("estoque.csv", "1,\"Café\",10,12.90"));
+    assert(contem("estoque.csv", "2,\"Outro\",10,2.00"));
+    assert(remove("estoque.csv") == 0);
 }
 
 static void testar_entradas_extensas(void)
@@ -95,7 +119,8 @@ static void testar_entradas_extensas(void)
         assert(fputc('a', arquivo) != EOF);
     assert(fputs("\nNome", arquivo) >= 0);
     assert(fputc(0, arquivo) != EOF);
-    assert(fputs("injetado\n\033[2J\n\xc0\xaf\nNome válido\n0\n0.01\n4", arquivo) >= 0);
+    assert(fputs("injetado\n\033[2J\n\xc0\xaf\n\u200b\nNome\u202e\n\u200d\n"
+                 "Nome válido\n0\n0.01\n10", arquivo) >= 0);
     assert(fclose(arquivo) == 0);
     assert(freopen("entrada.txt", "rb", stdin) != NULL);
     assert(freopen("saida.txt", "wb", stdout) != NULL);
@@ -111,6 +136,7 @@ int main(void)
     testar_menu();
     testar_fim_entrada();
     testar_preservacao();
+    testar_duplicidade_e_preco();
     testar_entradas_extensas();
     assert(fclose(stdin) == 0);
     assert(fclose(stdout) == 0);

@@ -71,6 +71,7 @@ int main(void)
     assert(carregar_estoque("memoria.csv", &copia, &invalidas, NULL) == ARMAZENAMENTO_SEM_MEMORIA);
     assert(copia.produtos == anterior && copia.total == 1 && copia.produtos[0].codigo == 9);
     alocacoes_restantes = 0;
+    assert(verificar_temporario("memoria.csv") == ARMAZENAMENTO_SEM_MEMORIA);
     assert(salvar_estoque("memoria.csv", &estoque) == ARMAZENAMENTO_SEM_MEMORIA);
     arquivo = fopen("memoria.csv", "rb");
     assert(arquivo != NULL);
