@@ -109,3 +109,7 @@ A gravação cria `estoque.csv.tmp` de forma exclusiva no mesmo diretório. Só 
 - Código e quantidade são limitados por `INT_MAX` (normalmente 2147483647). O preço máximo é R$ 92233720368547758,07 (`INT64_MAX` centavos). A quantidade de produtos depende da memória disponível; buscas são lineares e cada alteração usa uma cópia temporária do estoque.
 - Use uma instância por CSV. Não há bloqueio contra execuções simultâneas ou alterações externas. CSV corrompido e temporários deixados por interrupções exigem intervenção manual.
 - A substituição por `rename` é atômica em POSIX, como Linux. C11 não fornece `fsync`, portanto não há garantia de durabilidade em falta de energia. Em sistemas que não permitem substituir arquivos existentes por `rename`, a gravação falha e preserva o arquivo anterior.
+
+## Licença
+
+Este projeto está sob a licença MIT. Consulte o arquivo [LICENSE](LICENSE).
